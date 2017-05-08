@@ -1,0 +1,383 @@
+(deftemplate pc
+  (slot make) ;; 
+  (slot model) ;; 
+  (slot operating-system)
+  (slot type) ;; values: desktop / laptop / notebook
+  (slot disk-space)
+  )
+  
+(defmethod > ((?a STRING) (?b STRING))
+	(> (str-compare ?a ?b) 0))
+	
+
+(defrule initial-contact
+  (initial-fact)
+  =>
+  (printout t "Hello, what is the problem with your computer?" crlf
+  "[1] Won't turn on" crlf
+  "[2] Won't turn off" crlf
+"[3] Cup holder broke" crlf
+"[4] One or more crashes" crlf
+"[5] Very slow" crlf
+"[6] Internet browser problem" crlf
+"[7] Accidentally deleted data" crlf
+"[8] Overheating" crlf
+"[9] Mouse is slow" crlf
+"[10] Other" crlf 
+"Please type a number from 1 to 10" crlf "-> ")
+
+ (bind ?initial-problem (read))
+ (assert (problem step 1 ?initial-problem))
+ )
+
+(defrule gather-pc-detail
+  (problem step 1 ?any)
+  ?q<-(problem step ?n ?any)
+  =>
+  (printout t "First let's collect some details about your computer" crlf
+  "Make: " crlf "-> ")
+  (bind ?make (readline)) ;; make it a string in case of multiple words
+  (printout t "Model: " crlf "-> ")
+  (bind ?model (readline))
+  (printout t "Main operating system: " crlf "-> ")
+  (bind ?os1 (readline))
+  (printout t "Type: " crlf "[Desktop/Laptop/Notebook]-> ")
+  (bind ?type (readline)) ;; strings have been used up till now, let's be consistent
+  ;; don't ask about disk space or any other slots yet
+  (assert (pc (make ?make) (model ?model) (operating-system ?os1) (type ?type)))
+  )
+
+;------------old system detected---------------
+;check the specs, only currently checking operating system
+(defrule out-of-date
+?pc<-(pc(operating-system ?os))
+(test(eq ?os "xp")) ;running older than xp, system needs an upgrade
+=>
+(printout t "Your system is out of date, an engineer will be sent to you to update your system" crlf)
+(halt)
+)
+
+;------------issue 1---------------
+;run the basic set electric diagnostic i.e. is it plugged in
+(defrule electrician-101
+(problem step 1 1)
+=>
+(printout t "Is the power is plugged in at both ends? (y/n)" crlf)
+(bind ?power (readline))
+(assert (plugged-in ?power))
+)
+
+(defrule plugged-in-no
+(plugged-in "n"|"no")
+=>
+(printout t "Plug the power in at both ends" crlf)
+(halt)
+)
+
+(defrule fuse
+(plugged-in "y"|"yes")
+=>
+(printout t "Have you changed the fuse in the plug? (y/n)" crlf)
+(bind ?fuse (readline))
+(assert (fuse-changed ?fuse))
+)
+
+(defrule fuse-no
+(fuse-changed "n"|"no")
+=>
+(printout t "Change the fuse in the plug" crlf)
+(halt)
+)
+
+(defrule one-or-other
+(fuse-changed "y"|"yes")
+=>
+(printout t "Is the computer switching on but the monitor isn't?? (y/n)" crlf)
+(bind ?power (readline))
+(assert (power-issue ?power))
+)
+
+(defrule one-or-other-no
+(power-issue "n"|"no")
+=>
+(printout t "The monitor does not have power, make sure it is plugged in" crlf)
+(halt)
+)
+
+(defrule switch-jammed
+(power-issue "y"|"yes")
+=>
+(printout t "Is the on/off switch jammed, or bent?" crlf)
+(bind ?answer (readline))
+(assert (send-engineer ?answer))
+)
+
+(defrule switch-jammed-no
+(send-engineer "n"|"no")
+=>
+(printout t "Make sure the switch is in the on position and turn the system on" crlf)
+(halt)
+)
+
+(defrule send-engineer
+(switch-jammed "y"|"yes")
+=>
+(printout t "We will send an engineer to sort your issue" crlf)
+(halt)
+)
+
+;------------issue 2---------------
+;if it's a notebook the battery needs to be drained
+(defrule shutdown-notebook
+(problem step 1 2)
+?pc<-(pc(type ?system))
+(test(eq ?system "notebook"))
+=>
+(printout t "You have to let the battery drain and then charge again, if the problem persists contact IT" crlf)
+(halt)
+)
+
+;if it's a laptop take the battery out and in
+(defrule shutdown-laptop
+(problem step 1 2)
+?pc<-(pc(type ?system))
+(test(eq ?system "laptop"))
+=>
+(printout t "Take out the battery and put it back in, if the problem persists contact IT" crlf)
+(halt)
+)
+
+;if it's a desktop unplug it to turn it off
+(defrule shutdown-laptop
+(problem step 1 2)
+?pc<-(pc(type ?system))
+(test(eq ?system "desktop"))
+=>
+(printout t "Unplug the desktop, if the problem persists contact IT" crlf)
+(halt)
+)
+
+;------------issue 3---------------
+(defrule cup-holder
+(problem step 1 3)
+=>
+(printout t "There is no such things as a cupholder. It is a DVD drive. You must go and buy a new DVD drive." crlf)
+(halt)
+)
+
+;------------issue 3---------------
+(defrule crashes
+(problem step 1 4)
+=>
+(printout t "Run windows restore, and if this issue is not fixed after contact IT" crlf)
+(halt)
+)
+
+;------------issue 5---------------
+;check the basic input of the interview provided in the example
+;find the top 3 programs being run
+(defrule programs-running
+(problem step 1 5)
+?q<-(problem step ?n ?any)
+=>
+(printout t "List the top 3 most intensive programs running" crlf
+"1: ")
+(bind ?program-1 (readline))
+(printout t
+"2: ")
+(bind ?program-2 (readline))
+(printout t
+"3: ")
+(bind ?program-3 (readline))
+(assert (programs-running ?program-1 ?program-2 ?program-3))
+(retract ?q)
+(assert (problem step 2 5))
+)
+
+;if they are running intensive programs then solution found
+(defrule games
+(programs-running $? ?process&"games"|"rendering" $?)
+=>
+(printout t ?process" uses a lot of processing power, close it and your system should be fine" crlf)
+(halt)
+)
+
+;find their internet speed
+(defrule speed
+(programs-running $?)
+(problem step 2 5)
+?c<-(problem step 2 5)
+=>
+(printout t "How fast is your broadband connection?" crlf
+"download speed: ")
+(bind ?speed (readline))
+(assert (internet-speed ?speed))
+(retract ?c)
+(assert (problem step 3 5))
+)
+
+;if they don't know what it is, inform them and loop back to asking speed
+(defrule speed-unknown
+?s<-(internet-speed ?speed)
+?c<-(problem step 3 5)
+(internet-speed "don't know"|"unknown"|"?"|"what?")
+=>
+(printout t "Try opening www.speedtest.net and pressing run, this will give you your download speed" crlf)
+(retract ?s)
+(retract ?c)
+(assert (problem step 3 5))
+)
+
+;their speed is lower than 3 so clearly internet issue
+(defrule speed-below-3
+(internet-speed ?speed)
+(test (> "3" ?speed))
+=>
+(printout t "Your internet is currently running slow which is why you are most likely experiencing issues, we will send an engineer out" crlf)
+(halt)
+)
+
+;help them find explorer, and ask how much memory is present
+(defrule we-unknown
+(internet-speed ?speed)
+(test (> ?speed "3"))
+?pc<- (pc (disk-space ?ds))
+=>
+(printout t "Open windows explorer. Windows explorer can be found by searching \"File explorer\" and clicking it. Click right where it says \"system C:\" and then click 'properties'. How much free space do you have?" crlf)
+(bind ?space (readline))
+(modify ?pc (disk-space ?space))
+(halt)
+)
+
+;if the space is above 90 perecent found solution
+(defrule space
+?pc<-(pc (disk-space ?space))
+(test (not (eq ?space nil)))
+(test (> ?space "91"))
+=>
+(printout t "This is most likely the reason. Delete some files, start by opening 'disk cleanup' from the search box and then find any large files you can delete" crlf)
+(halt)
+)
+
+;unknown issue so engineer will have to solve
+(defrule space-sol
+?pc<-(pc (disk-space ?space))
+(test (not (eq ?space nil)))
+(test (> "90" ?space))
+=>
+(printout t "We will send out an engineer to solve your issue" crlf)
+(halt)
+)
+
+;------------issue 6---------------
+;problem too broad, ask about it
+(defrule browser-problems
+(problem step 1 6)
+=>
+(printout t "Specify in more detail the problem" crlf)
+(bind ?answer (readline))
+(assert (browser-problem ?answer))
+)
+
+;security certificates are invalid, time error
+(defrule browser-security
+(browser-problem "security certificate"|"security")
+=>
+(printout t "The computer's internal clock is wrong, reset the clock on your system" crlf)
+(halt)
+)
+
+;getting pop ups or windows
+(defrule browser-windows
+(browser-problem "windows popping up"|"pop ups"|"pop-ups")
+=>
+(printout t "What is in the window that pops up?" crlf)
+(bind ?answer (readline))
+(assert (window-popup ?answer))
+)
+
+;some malicious intent has been made and relevant sources need to be contacted
+(defrule window-malicious
+(window-popup "porn"|"child-porn")
+=>
+(printout t "It is urgent that you turn off your machine and call IT security immediately" crlf)
+(halt)
+)
+
+;adverts is just a virus or malware issue so remove them
+(defrule window-ads
+(window-popup "advert"|"ads"|"ad")
+=>
+(printout t "Install BitDefender and run the executable, if it shows the machine has virus' then please bring the machine to IT and any usbs sticks or other hardware you have used with this machine" crlf)
+(halt)
+)
+
+;------------issue 7---------------
+(defrule delete-data
+(problem step 1 7)
+=>
+(printout t "Open the recycle bin, try to find the file you deleted here, if it is not type no" crlf)
+(bind ?ans (readline))
+(assert (delete-data ?ans))
+)
+
+(defrule recycle-success
+(delete-data "yes"|"thank you")
+=>
+(halt)
+)
+
+;guide the user if they do not know how to restore files
+(defrule recylce-how
+(delete-data "how do i restore"|"how to restore"|"found it")
+=>
+(printout t "Right click the file(s) and press restore, it will now give you access to the file again" crlf)
+(halt)
+)
+
+;if the files are not there then run a backup
+(defrule recycle-bin
+(delete-data "no"|"n"|"it is not there"|"not there")
+=>
+(printout t "You must run a system restore and backup any new files on a USB stick. If your file is still not restored, then you have lost the file(s)" crlf)
+(halt)
+)
+
+;------------issue 8---------------
+(defrule overheating
+(problem step 1 8)
+=>
+(printout t "Are you using the laptop on a hard and flat surface?")
+(bind ?ans (readline))
+(assert (overheating ?ans))
+)
+
+(defrule use-surface
+(overheating "no"|"n")
+=>
+(printout t "You must use the laptop on a hard and flat surface as it blocks the air flow" crlf)
+(halt)
+)
+
+(defrule clear-fans
+(overheating "yes"|"y"|"of course")
+=>
+(printout t "Try removing any dust from the fans, if this issue persists call IT" crlf)
+(halt)
+)
+
+;------------issue 9---------------
+(defrule mouse-speed
+(problem step 1 9)
+=>
+(printout t "Go to search and type 'mouse', select the option and a menu will appear. Select the 'pointer options' tab at the top and move the motion slider towards faster." crlf)
+(halt)
+)
+
+;------------issue 10---------------
+;will check system specs, if no problems then solution cannot be found
+(defrule other
+(problem step 1 10)
+=>
+(printout t "Sorry, we cannot currently diagnose any other issues other than what is on the list. Please try again." crlf)
+)
